@@ -22,32 +22,29 @@ public class FirstBankAccountSystem {
         System.out.println(account1.toString());
         System.out.println(account2.toString());
         System.out.println(account3.toString());
-        System.out.println("\n=== Starting Concurrent Banking Operations ===\n");
+        System.out.println("\n=== Starting Different Concurrent Banking Operations ===\n");
 
-        // Create Runnable tasks for concurrent operations
-        BankingOperations ops1 = new BankingOperations(account1, account2, "Bach-Operations");
-        BankingOperations ops2 = new BankingOperations(account2, account3, "Ben-Operations");
-        BankingOperations ops3 = new BankingOperations(account3, account1, "Charlie-Operations");
+        // Create SPECIFIC Runnable tasks - each customer has different behavior!
+        CustomerDepositor bachDepositor = new CustomerDepositor(account1);        // Bach: Saves money
+        CustomerWithdrawer benWithdrawer = new CustomerWithdrawer(account2);      // Ben: Spends money  
+        AccountTransfer charlieTransfer = new AccountTransfer(account3,           // Charlie: Transfers money
+                                                    new TheBankAccount[]{account1, account2});
         
-        // Create and start threads
-        Thread thread1 = new Thread(ops1);
-        Thread thread2 = new Thread(ops2);
-        Thread thread3 = new Thread(ops3);
+        // Create threads with descriptive names
+        Thread bachThread = new Thread(bachDepositor, "Bach-Depositor-Thread");
+        Thread benThread = new Thread(benWithdrawer, "Ben-Withdrawer-Thread");
+        Thread charlieThread = new Thread(charlieTransfer, "Charlie-Transfer-Thread");
         
-        thread1.setName("Bach-Thread");
-        thread2.setName("Ben-Thread");
-        thread3.setName("Charlie-Thread");
-        
-        // Start all threads concurrently
-        thread1.start();
-        thread2.start();
-        thread3.start();
+        // Start all threads concurrently - each doing different operations!
+        bachThread.start();      // Bach starts depositing
+        benThread.start();       // Ben starts withdrawing
+        charlieThread.start();   // Charlie starts transferring
         
         try {
             // Wait for all operations to complete
-            thread1.join();
-            thread2.join();
-            thread3.join();
+            bachThread.join();      // Wait for Bach's deposits to finish
+            benThread.join();       // Wait for Ben's withdrawals to finish  
+            charlieThread.join();   // Wait for Charlie's transfers to finish
         } catch (InterruptedException e) {
             System.err.println("Main thread interrupted: " + e.getMessage());
         }
@@ -111,64 +108,124 @@ class TheBankAccount {
 }
 
 /**
- * BankingOperations class implements Runnable interface
- * Demonstrates concurrent banking operations between accounts
- * 
- * KEY BENEFITS OF USING RUNNABLE:
- * 1. Separation of concerns - Task logic separate from thread management
- * 2. Flexibility - Can be executed by different thread executors
- * 3. Reusability - Same task can be used with thread pools
- * 4. Better OOP design - Allows class to extend other classes if needed
+ * CustomerDepositor - Represents a customer who frequently deposits money
+ * Bach Lee's behavior: Makes regular deposits to build savings
  */
-class BankingOperations implements Runnable {
-    private TheBankAccount sourceAccount;
-    private TheBankAccount targetAccount;
-    private String operationName;
+class CustomerDepositor implements Runnable {
+    private TheBankAccount account;
+    private String customerName;
     
-    public BankingOperations(TheBankAccount sourceAccount, TheBankAccount targetAccount, String operationName) {
-        this.sourceAccount = sourceAccount;
-        this.targetAccount = targetAccount;
-        this.operationName = operationName;
+    public CustomerDepositor(TheBankAccount account) {
+        this.account = account;
+        this.customerName = account.getAccountHolderName();
     }
     
     @Override
     public void run() {
-        System.out.println(operationName + " started by " + Thread.currentThread().getName());
+        System.out.println("=== " + customerName + " (Depositor) started ===");
         
-        try {
-            // Perform deposit operation
-            double depositAmount = 100.0;
-            sourceAccount.deposit(depositAmount);
-            System.out.println(operationName + " - Deposited $" + depositAmount + " to " + 
-                             sourceAccount.getAccountHolderName() + "'s account");
-            
-            Thread.sleep(500); // Simulate processing time
-            
-            // Perform withdrawal operation  
-            double withdrawAmount = 150.0;
-            if (sourceAccount.withdraw(withdrawAmount)) {
-                System.out.println(operationName + " - Withdrew $" + withdrawAmount + " from " + 
-                                 sourceAccount.getAccountHolderName() + "'s account");
-            } else {
-                System.out.println(operationName + " - Withdrawal failed for " + 
-                                 sourceAccount.getAccountHolderName() + " - Insufficient funds");
+        // Bach makes multiple deposits - saving money behavior
+        double[] deposits = {250.0, 150.0, 300.0, 100.0};
+        
+        for (double amount : deposits) {
+            try {
+                account.deposit(amount);
+                System.out.println(customerName + " deposited $" + amount + 
+                                 " | Balance: $" + account.getBalance());
+                Thread.sleep(800); // Simulate time between deposits
+            } catch (InterruptedException e) {
+                System.err.println(customerName + " deposit interrupted: " + e.getMessage());
+                break;
             }
-            
-            Thread.sleep(300);
-            
-            // Perform transfer operation
-            double transferAmount = 75.0;
-            double transferred = sourceAccount.transferFunds(transferAmount, targetAccount);
-            if (transferred > 0) {
-                System.out.println(operationName + " - Transferred $" + transferred + " from " + 
-                                 sourceAccount.getAccountHolderName() + " to " + 
-                                 targetAccount.getAccountHolderName());
-            }
-            
-        } catch (InterruptedException e) {
-            System.err.println(operationName + " interrupted: " + e.getMessage());
         }
         
-        System.out.println(operationName + " completed by " + Thread.currentThread().getName());
+        System.out.println("=== " + customerName + " (Depositor) finished ===");
+    }
+}
+
+/**
+ * CustomerWithdrawer - Represents a customer who frequently withdraws money  
+ * Ben's behavior: Makes regular withdrawals for expenses
+ */
+class CustomerWithdrawer implements Runnable {
+    private TheBankAccount account;
+    private String customerName;
+    
+    public CustomerWithdrawer(TheBankAccount account) {
+        this.account = account;
+        this.customerName = account.getAccountHolderName();
+    }
+    
+    @Override
+    public void run() {
+        System.out.println("=== " + customerName + " (Withdrawer) started ===");
+        
+        // Ben makes multiple withdrawals - spending money behavior
+        double[] withdrawals = {100.0, 200.0, 150.0, 75.0};
+        
+        for (double amount : withdrawals) {
+            try {
+                if (account.withdraw(amount)) {
+                    System.out.println(customerName + " withdrew $" + amount + 
+                                     " | Balance: $" + account.getBalance());
+                } else {
+                    System.out.println(customerName + " FAILED to withdraw $" + amount + 
+                                     " | Insufficient funds! Balance: $" + account.getBalance());
+                }
+                Thread.sleep(600); // Simulate time between withdrawals
+            } catch (InterruptedException e) {
+                System.err.println(customerName + " withdrawal interrupted: " + e.getMessage());
+                break;
+            }
+        }
+        
+        System.out.println("=== " + customerName + " (Withdrawer) finished ===");
+    }
+}
+
+/**
+ * AccountTransfer - Represents a customer who transfers money between accounts
+ * Charlie's behavior: Manages money transfers between different accounts
+ */
+class AccountTransfer implements Runnable {
+    private TheBankAccount sourceAccount;
+    private TheBankAccount[] targetAccounts;
+    private String customerName;
+    
+    public AccountTransfer(TheBankAccount sourceAccount, TheBankAccount[] targetAccounts) {
+        this.sourceAccount = sourceAccount;
+        this.targetAccounts = targetAccounts;
+        this.customerName = sourceAccount.getAccountHolderName();
+    }
+    
+    @Override
+    public void run() {
+        System.out.println("=== " + customerName + " (Transfer Manager) started ===");
+        
+        // Charlie transfers money to different accounts
+        double[] transferAmounts = {50.0, 75.0, 100.0};
+        
+        for (int i = 0; i < transferAmounts.length && i < targetAccounts.length; i++) {
+            try {
+                double amount = transferAmounts[i];
+                TheBankAccount target = targetAccounts[i];
+                
+                double transferred = sourceAccount.transferFunds(amount, target);
+                if (transferred > 0) {
+                    System.out.println(customerName + " transferred $" + transferred + 
+                                     " to " + target.getAccountHolderName() + 
+                                     " | " + customerName + " Balance: $" + sourceAccount.getBalance());
+                } else {
+                    System.out.println(customerName + " FAILED to transfer $" + amount + 
+                                     " | Insufficient funds! Balance: $" + sourceAccount.getBalance());
+                }
+                Thread.sleep(1000); // Simulate transfer processing time
+            } catch (InterruptedException e) {
+                System.err.println(customerName + " transfer interrupted: " + e.getMessage());
+                break;
+            }
+        }
+        
+        System.out.println("=== " + customerName + " (Transfer Manager) finished ===");
     }
 }
